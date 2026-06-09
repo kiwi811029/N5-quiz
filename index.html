@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>N5 單字測驗</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "Helvetica Neue", "Hiragino Sans", "Yu Gothic", sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    color: #333;
+  }
+  .container {
+    background: #fff;
+    border-radius: 20px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    max-width: 600px;
+    width: 100%;
+    padding: 32px;
+  }
+  h1 {
+    text-align: center;
+    color: #667eea;
+    margin-bottom: 8px;
+    font-size: 28px;
+  }
+  .subtitle {
+    text-align: center;
+    color: #888;
+    font-size: 14px;
+    margin-bottom: 24px;
+  }
+  .stats {
+    display: flex;
+    justify-content: space-between;
+    background: #f5f5f9;
+    padding: 12px 16px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    font-size: 14px;
+  }
+  .stats span { color: #667eea; font-weight: bold; }
+  .question {
+    background: #fafafe;
+    border-left: 4px solid #667eea;
+    padding: 20px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    min-height: 140px;
+  }
+  .q-label {
+    color: #888;
+    font-size: 12px;
+    margin-bottom: 8px;
+  }
+  .q-text {
+    font-size: 24px;
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 12px;
+    word-break: break-word;
+  }
+  .q-reading {
+    color: #667eea;
+    font-size: 16px;
+    margin-bottom: 8px;
+  }
+  .q-hint {
+    margin-top: 10px;
+    padding: 10px 14px;
+    background: #f0f0fc;
+    border-radius: 8px;
+    color: #555;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .q-hint strong { color: #667eea; }
+  .options {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  .opt {
+    background: #fff;
+    border: 2px solid #e0e0e8;
+    border-radius: 10px;
+    padding: 14px 18px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: all 0.2s;
+    text-align: left;
+    font-family: inherit;
+    color: #333;
+  }
+  .opt:hover:not(:disabled) {
+    border-color: #667eea;
+    background: #f0f0fc;
+    transform: translateY(-1px);
+  }
+  .opt:disabled { cursor: not-allowed; }
+  .opt.correct {
+    background: #d4f5dd;
+    border-color: #4caf50;
+    color: #2e7d32;
+  }
+  .opt.wrong {
+    background: #ffd6d6;
+    border-color: #f44336;
+    color: #c62828;
+  }
+  .feedback {
+    text-align: center;
+    font-size: 16px;
+    font-weight: bold;
+    min-height: 24px;
+    margin-bottom: 12px;
+  }
+  .feedback.correct { color: #4caf50; }
+  .feedback.wrong { color: #f44336; }
+  .btn {
+    width: 100%;
+    padding: 14px;
+    background: #667eea;
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: inherit;
+  }
+  .btn:hover { background: #5568d3; }
+  .btn:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+  }
+  .start-screen, .end-screen { text-align: center; }
+  .start-screen p, .end-screen p {
+    color: #555;
+    margin-bottom: 16px;
+    line-height: 1.6;
+  }
+  .end-score {
+    font-size: 48px;
+    color: #667eea;
+    font-weight: bold;
+    margin: 16px 0;
+  }
+  .mode-select {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  .mode-btn {
+    flex: 1;
+    padding: 12px;
+    background: #f5f5f9;
+    border: 2px solid transparent;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 14px;
+    font-family: inherit;
+    color: #555;
+    transition: all 0.2s;
+  }
+  .mode-btn.active {
+    background: #f0f0fc;
+    border-color: #667eea;
+    color: #667eea;
+    font-weight: bold;
+  }
+</style>
+</head>
+<body>
+<div class="container" id="app"></div>
+
+<script>
+// ============ N5 單字資料庫 ============
+// 結構:{ ja: 漢字/單字, reading: 讀音, zh: 中文意思 }
+const VOCAB = [
+  { ja: "会う", reading: "あう", zh: "見面" },
+  { ja: "青", reading: "あお", zh: "藍色" },
+  { ja: "赤い", reading: "あかい", zh: "紅色的" },
+  { ja: "明るい", reading: "あかるい", zh: "明亮的" },
+  { ja: "秋", reading: "あき", zh: "秋天" },
+  { ja: "開ける", reading: "あける", zh: "打開" },
+  { ja: "上げる", reading: "あげる", zh: "給予" },
+  { ja: "朝", reading: "あさ", zh: "早上" },
+  { ja: "朝御飯", reading: "あさごはん", zh: "早餐" },
+  { ja: "足", reading: "あし", zh: "腳" },
+  { ja: "明日", reading: "あした", zh: "明天" },
+  { ja: "遊ぶ", reading: "あそぶ", zh: "玩" },
+  { ja: "温かい", reading: "あたたかい", zh: "溫暖的" },
+  { ja: "頭", reading: "あたま", zh: "頭" },
+  { ja: "新しい", reading: "あたらしい", zh: "新的" },
+  { ja: "暑い", reading: "あつい", zh: "熱的" },
+  { ja: "厚い", reading: "あつい", zh: "厚的" },
+  { ja: "集まる", reading: "あつまる", zh: "聚集" },
+  { ja: "後", reading: "あと", zh: "之後" },
+  { ja: "兄", reading: "あに", zh: "哥哥" },
+  { ja: "姉", reading: "あね", zh: "姊姊" },
+  { ja: "危ない", reading: "あぶない", zh: "危險的" },
+  { ja: "甘い", reading: "あまい", zh: "甜的" },
+  { ja: "雨", reading: "あめ", zh: "雨" },
+  { ja: "洗う", reading: "あらう", zh: "洗" },
+  { ja: "有る", reading: "ある", zh: "有" },
+  { ja: "歩く", reading: "あるく", zh: "走路" },
+  { ja: "家", reading: "いえ", zh: "家" },
+  { ja: "言う", reading: "いう", zh: "說" },
+  { ja: "医者", reading: "いしゃ", zh: "醫生" },
+  { ja: "行く", reading: "いく", zh: "去" },
+  { ja: "いくつ", reading: "いくつ", zh: "幾個/幾歲" },
+  { ja: "池", reading: "いけ", zh: "池塘" },
+  { ja: "忙しい", reading: "いそがしい", zh: "忙碌的" },
+  { ja: "痛い", reading: "いたい", zh: "痛的" },
+  { ja: "一", reading: "いち", zh: "一" },
+  { ja: "一日", reading: "いちにち", zh: "一天" },
+  { ja: "一緒", reading: "いっしょ", zh: "一起" },
+  { ja: "五日", reading: "いつか", zh: "五號" },
+  { ja: "糸", reading: "いと", zh: "線" },
+  { ja: "犬", reading: "いぬ", zh: "狗" },
+  { ja: "今", reading: "いま", zh: "現在" },
+  { ja: "意味", reading: "いみ", zh: "意思" },
+  { ja: "妹", reading: "いもうと", zh: "妹妹" },
+  { ja: "嫌", reading: "いや", zh: "討厭" },
+  { ja: "入口", reading: "いりぐち", zh: "入口" },
+  { ja: "色", reading: "いろ", zh: "顏色" },
+  { ja: "上", reading: "うえ", zh: "上面" },
+  { ja: "後ろ", reading: "うしろ", zh: "後面" },
+  { ja: "薄い", reading: "うすい", zh: "薄的" },
+  { ja: "歌", reading: "うた", zh: "歌" },
+  { ja: "歌う", reading: "うたう", zh: "唱歌" },
+  { ja: "生まれる", reading: "うまれる", zh: "出生" },
+  { ja: "海", reading: "うみ", zh: "海" },
+  { ja: "売る", reading: "うる", zh: "賣" },
+  { ja: "嬉しい", reading: "うれしい", zh: "開心的" },
+  { ja: "絵", reading: "え", zh: "圖畫" },
+  { ja: "映画", reading: "えいが", zh: "電影" },
+  { ja: "英語", reading: "えいご", zh: "英文" },
+  { ja: "駅", reading: "えき", zh: "車站" },
+  { ja: "エレベーター", reading: "えれべーたー", zh: "電梯" },
+  { ja: "円", reading: "えん", zh: "日圓" },
+  { ja: "鉛筆", reading: "えんぴつ", zh: "鉛筆" },
+  { ja: "お婆さん", reading: "おばあさん", zh: "祖母" },
+  { ja: "お爺さん", reading: "おじいさん", zh: "祖父" },
+  { ja: "多い", reading: "おおい", zh: "多的" },
+  { ja: "大きい", reading: "おおきい", zh: "大的" },
+  { ja: "大きな", reading: "おおきな", zh: "大的" },
+  { ja: "お菓子", reading: "おかし", zh: "點心" },
+  { ja: "お金", reading: "おかね", zh: "錢" },
+  { ja: "起きる", reading: "おきる", zh: "起床" },
+  { ja: "置く", reading: "おく", zh: "放" },
+  { ja: "奥さん", reading: "おくさん", zh: "太太" },
+  { ja: "お酒", reading: "おさけ", zh: "酒" },
+  { ja: "お皿", reading: "おさら", zh: "盤子" },
+  { ja: "教える", reading: "おしえる", zh: "教" },
+  { ja: "押す", reading: "おす", zh: "推" },
+  { ja: "遅い", reading: "おそい", zh: "慢的" },
+  { ja: "お茶", reading: "おちゃ", zh: "茶" },
+  { ja: "お手洗い", reading: "おてあらい", zh: "廁所" },
+  { ja: "音", reading: "おと", zh: "聲音" },
+  { ja: "弟", reading: "おとうと", zh: "弟弟" },
+  { ja: "男", reading: "おとこ", zh: "男人" },
+  { ja: "男の子", reading: "おとこのこ", zh: "男孩" },
+  { ja: "大人", reading: "おとな", zh: "大人" },
+  { ja: "一昨日", reading: "おととい", zh: "前天" },
+  { ja: "一昨年", reading: "おととし", zh: "前年" },
+  { ja: "お腹", reading: "おなか", zh: "肚子" },
+  { ja: "同じ", reading: "おなじ", zh: "相同" },
+  { ja: "お兄さん", reading: "おにいさん", zh: "哥哥(敬稱)" },
+  { ja: "お姉さん", reading: "おねえさん", zh: "姊姊(敬稱)" },
+  { ja: "叔父", reading: "おじ", zh: "叔叔" },
+  { ja: "伯母", reading: "おば", zh: "阿姨" },
+  { ja: "覚える", reading: "おぼえる", zh: "記住" },
+  { ja: "お弁当", reading: "おべんとう", zh: "便當" },
+  { ja: "泳ぐ", reading: "およぐ", zh: "游泳" },
+  { ja: "降りる", reading: "おりる", zh: "下來" },
+  { ja: "終わる", reading: "おわる", zh: "結束" },
+  { ja: "音楽", reading: "おんがく", zh: "音樂" },
+  { ja: "女", reading: "おんな", zh: "女人" },
+  { ja: "女の子", reading: "おんなのこ", zh: "女孩" },
+  { ja: "会社", reading: "かいしゃ", zh: "公司" },
+  { ja: "階段", reading: "かいだん", zh: "樓梯" },
+  { ja: "買い物", reading: "かいもの", zh: "購物" },
+  { ja: "顔", reading: "かお", zh: "臉" },
+  { ja: "鏡", reading: "かがみ", zh: "鏡子" },
+  { ja: "かかる", reading: "かかる", zh: "花費/掛著" },
+  { ja: "鍵", reading: "かぎ", zh: "鑰匙" },
+  { ja: "書く", reading: "かく", zh: "寫" },
+  { ja: "学生", reading: "がくせい", zh: "學生" },
+  { ja: "傘", reading: "かさ", zh: "傘" },
+  { ja: "貸す", reading: "かす", zh: "借出" },
+  { ja: "風", reading: "かぜ", zh: "風" },
+  { ja: "家族", reading: "かぞく", zh: "家人" },
+  { ja: "方", reading: "かた", zh: "位(敬稱)" },
+  { ja: "学校", reading: "がっこう", zh: "學校" },
+  { ja: "家", reading: "うち", zh: "家" },
+  { ja: "カップ", reading: "かっぷ", zh: "杯子" },
+  { ja: "彼", reading: "かれ", zh: "他(男友)" },
+  { ja: "彼女", reading: "かのじょ", zh: "她(女友)" },
+  { ja: "紙", reading: "かみ", zh: "紙" },
+  { ja: "髪", reading: "かみ", zh: "頭髮" },
+  { ja: "カメラ", reading: "かめら", zh: "相機" },
+  { ja: "火曜日", reading: "かようび", zh: "星期二" },
+  { ja: "辛い", reading: "からい", zh: "辣的" },
+  { ja: "体", reading: "からだ", zh: "身體" },
+  { ja: "借りる", reading: "かりる", zh: "借入" },
+  { ja: "軽い", reading: "かるい", zh: "輕的" },
+  { ja: "カレンダー", reading: "かれんだー", zh: "月曆" },
+  { ja: "川", reading: "かわ", zh: "河" },
+  { ja: "可愛い", reading: "かわいい", zh: "可愛的" },
+  { ja: "漢字", reading: "かんじ", zh: "漢字" },
+  { ja: "木", reading: "き", zh: "樹" },
+  { ja: "黄色い", reading: "きいろい", zh: "黃色的" },
+  { ja: "消える", reading: "きえる", zh: "消失" },
+  { ja: "聞く", reading: "きく", zh: "聽/問" },
+  { ja: "北", reading: "きた", zh: "北" },
+  { ja: "汚い", reading: "きたない", zh: "髒的" },
+  { ja: "喫茶店", reading: "きっさてん", zh: "咖啡店" },
+  { ja: "切手", reading: "きって", zh: "郵票" },
+  { ja: "切符", reading: "きっぷ", zh: "票" },
+  { ja: "昨日", reading: "きのう", zh: "昨天" },
+  { ja: "牛肉", reading: "ぎゅうにく", zh: "牛肉" },
+  { ja: "牛乳", reading: "ぎゅうにゅう", zh: "牛奶" },
+  { ja: "今日", reading: "きょう", zh: "今天" },
+  { ja: "教室", reading: "きょうしつ", zh: "教室" },
+  { ja: "兄弟", reading: "きょうだい", zh: "兄弟姊妹" },
+  { ja: "去年", reading: "きょねん", zh: "去年" },
+  { ja: "嫌い", reading: "きらい", zh: "討厭" },
+  { ja: "切る", reading: "きる", zh: "切" },
+  { ja: "着る", reading: "きる", zh: "穿(上半身)" },
+  { ja: "きれい", reading: "きれい", zh: "漂亮" },
+  { ja: "銀行", reading: "ぎんこう", zh: "銀行" },
+  { ja: "金曜日", reading: "きんようび", zh: "星期五" },
+  { ja: "薬", reading: "くすり", zh: "藥" },
+  { ja: "果物", reading: "くだもの", zh: "水果" },
+  { ja: "口", reading: "くち", zh: "嘴巴" },
+  { ja: "靴", reading: "くつ", zh: "鞋子" },
+  { ja: "靴下", reading: "くつした", zh: "襪子" },
+  { ja: "車", reading: "くるま", zh: "汽車" },
+  { ja: "黒い", reading: "くろい", zh: "黑色的" },
+  { ja: "警官", reading: "けいかん", zh: "警察" },
+  { ja: "今月", reading: "こんげつ", zh: "這個月" },
+  { ja: "今週", reading: "こんしゅう", zh: "這個星期" },
+  { ja: "こんな", reading: "こんな", zh: "這樣的" },
+  { ja: "こんにちは", reading: "こんにちは", zh: "你好" },
+  { ja: "今晚", reading: "こんばん", zh: "今晚" },
+  { ja: "さあ", reading: "さあ", zh: "來吧" },
+  { ja: "魚", reading: "さかな", zh: "魚" },
+  { ja: "先", reading: "さき", zh: "之前" },
+  { ja: "咲く", reading: "さく", zh: "開花" },
+  { ja: "作文", reading: "さくぶん", zh: "作文" },
+  { ja: "さす", reading: "さす", zh: "撐傘" },
+  { ja: "雑誌", reading: "ざっし", zh: "雜誌" },
+  { ja: "砂糖", reading: "さとう", zh: "砂糖" },
+  { ja: "寒い", reading: "さむい", zh: "冷的" },
+  { ja: "再来年", reading: "さらいねん", zh: "後年" },
+  { ja: "三", reading: "さん", zh: "三" },
+  { ja: "散歩", reading: "さんぽ", zh: "散步" },
+  { ja: "四", reading: "し/よん", zh: "四" },
+  { ja: "塩", reading: "しお", zh: "鹽" },
+  { ja: "しかし", reading: "しかし", zh: "但是" },
+  { ja: "時間", reading: "じかん", zh: "時間" },
+  { ja: "仕事", reading: "しごと", zh: "工作" },
+  { ja: "辞書", reading: "じしょ", zh: "字典" },
+  { ja: "静か", reading: "しずか", zh: "安靜" },
+  { ja: "下", reading: "した", zh: "下面" },
+  { ja: "七", reading: "しち/なな", zh: "七" },
+  { ja: "質問", reading: "しつもん", zh: "問題" },
+  { ja: "自転車", reading: "じてんしゃ", zh: "腳踏車" },
+  { ja: "自動車", reading: "じどうしゃ", zh: "汽車" },
+  { ja: "死ぬ", reading: "しぬ", zh: "死" },
+  { ja: "字引", reading: "じびき", zh: "字典" },
+  { ja: "自分", reading: "じぶん", zh: "自己" },
+  { ja: "閉まる", reading: "しまる", zh: "關上" },
+  { ja: "閉める", reading: "しめる", zh: "關上(他動詞)" },
+  { ja: "締める", reading: "しめる", zh: "繫緊" },
+  { ja: "じゃ", reading: "じゃ", zh: "那麼" },
+  { ja: "写真", reading: "しゃしん", zh: "照片" },
+  { ja: "シャツ", reading: "しゃつ", zh: "襯衫" },
+  { ja: "シャワー", reading: "しゃわー", zh: "淋浴" },
+  { ja: "十", reading: "じゅう/じっ", zh: "十" },
+  { ja: "宿題", reading: "しゅくだい", zh: "作業" },
+  { ja: "上手", reading: "じょうず", zh: "擅長" },
+  { ja: "丈夫", reading: "じょうぶ", zh: "結實" },
+  { ja: "醤油", reading: "しょうゆ", zh: "醬油" },
+  { ja: "小学校", reading: "しょうがっこう", zh: "小學" },
+  { ja: "少し", reading: "すこし", zh: "一點" },
+  { ja: "涼しい", reading: "すずしい", zh: "涼爽的" },
+  { ja: "ストーブ", reading: "すー tob", zh: "暖爐" },
+  { ja: "好き", reading: "すき", zh: "喜歡" },
+  { ja: "過ぎる", reading: "すぎる", zh: "經過" },
+  { ja: "すぐ", reading: "すぐ", zh: "馬上" },
+  { ja: "少ない", reading: "すくない", zh: "少的" },
+  { ja: "すごい", reading: "すごい", zh: "厲害" },
+  { ja: "少し", reading: "すこし", zh: "一點點" },
+  { ja: "過ごす", reading: "すごす", zh: "度過" },
+  { ja: "寿司", reading: "すし", zh: "壽司" },
+  { ja: "すし", reading: "すし", zh: "壽司" },
+  { ja: "住む", reading: "すむ", zh: "住" },
+  { ja: "する", reading: "する", zh: "做" },
+  { ja: "座る", reading: "すわる", zh: "坐" },
+  { ja: "精々", reading: "せいぜい", zh: "最多" },
+  { ja: "先生", reading: "せんせい", zh: "老師" },
+  { ja: "洗濯", reading: "せんたく", zh: "洗衣服" },
+  { ja: "全部", reading: "ぜんぶ", zh: "全部" },
+  { ja: "そう", reading: "そう", zh: "那樣" },
+  { ja: "掃除", reading: "そうじ", zh: "打掃" },
+  { ja: "外", reading: "そと", zh: "外面" },
+  { ja: "空", reading: "そら", zh: "天空" },
+  { ja: "それ", reading: "それ", zh: "那個" },
+  { ja: "大学", reading: "だいがく", zh: "大學" },
+  { ja: "大丈夫", reading: "だいじょうぶ", zh: "沒問題" },
+  { ja: "大好き", reading: "だいすき", zh: "非常喜歡" },
+  { ja: "大切", reading: "たいせつ", zh: "重要" },
+  { ja: "台所", reading: "だいどころ", zh: "廚房" },
+  { ja: "高い", reading: "たかい", zh: "高的/貴的" },
+  { ja: "たくさん", reading: "たくさん", zh: "很多" },
+  { ja: "タクシー", reading: "たくしー", zh: "計程車" },
+  { ja: "立つ", reading: "たつ", zh: "站" },
+  { ja: "建物", reading: "たてもの", zh: "建築物" },
+  { ja: "楽しい", reading: "たのしい", zh: "快樂的" },
+  { ja: "頼む", reading: "たのむ", zh: "拜託" },
+  { ja: "たばこ", reading: "たばこ", zh: "菸" },
+  { ja: "食べ物", reading: "たべもの", zh: "食物" },
+  { ja: "食べる", reading: "たべる", zh: "吃" },
+  { ja: "卵", reading: "たまご", zh: "蛋" },
+  { ja: "誰", reading: "だれ", zh: "誰" },
+  { ja: "誕生日", reading: "たんじょうび", zh: "生日" },
+  { ja: "小さい", reading: "ちいさい", zh: "小的" },
+  { ja: "小さな", reading: "ちいさな", zh: "小的" },
+  { ja: "近い", reading: "ちかい", zh: "近的" },
+  { ja: "違う", reading: "ちがう", zh: "不同" },
+  { ja: "地図", reading: "ちず", zh: "地圖" },
+  { ja: "父", reading: "ちち", zh: "爸爸(自稱)" },
+  { ja: "お茶", reading: "おちゃ", zh: "茶" },
+  { ja: "一日", reading: "ついたち", zh: "一號" },
+  { ja: "使う", reading: "つかう", zh: "使用" },
+  { ja: "疲れる", reading: "つかれる", zh: "疲倦" },
+  { ja: "次", reading: "つぎ", zh: "下一個" },
+  { ja: "着く", reading: "つく", zh: "抵達" },
+  { ja: "机", reading: "つくえ", zh: "桌子" },
+  { ja: "作る", reading: "つくる", zh: "做/製作" },
+  { ja: "つける", reading: "つける", zh: "打開(開關)" },
+  { ja: "妻", reading: "つま", zh: "妻子" },
+  { ja: "冷たい", reading: "つめたい", zh: "冷的" },
+  { ja: "強い", reading: "つよい", zh: "強的" },
+  { ja: "手", reading: "て", zh: "手" },
+  { ja: "テープ", reading: "てーぷ", zh: "錄音帶" },
+  { ja: "テーブル", reading: "てーぶる", zh: "桌子" },
+  { ja: "手紙", reading: "てがみ", zh: "信" },
+  { ja: "出かける", reading: "でかける", zh: "外出" },
+  { ja: "出口", reading: "でぐち", zh: "出口" },
+  { ja: "テスト", reading: "てすと", zh: "測驗" },
+  { ja: "テレビ", reading: "てれび", zh: "電視" },
+  { ja: "天気", reading: "てんき", zh: "天氣" },
+  { ja: "電気", reading: "でんき", zh: "電/電燈" },
+  { ja: "電車", reading: "でんしゃ", zh: "電車" },
+  { ja: "電話", reading: "でんわ", zh: "電話" },
+  { ja: "戸", reading: "と", zh: "門" },
+  { ja: "ドア", reading: "どあ", zh: "門" },
+  { ja: "トイレ", reading: "といれ", zh: "廁所" },
+  { ja: "どう", reading: "どう", zh: "如何" },
+  { ja: "どうして", reading: "どうして", zh: "為什麼" },
+  { ja: "動物", reading: "どうぶつ", zh: "動物" },
+  { ja: "遠い", reading: "とおい", zh: "遠的" },
+  { ja: "十日", reading: "とおか", zh: "十號" },
+  { ja: "時々", reading: "ときどき", zh: "有時" },
+  { ja: "時計", reading: "とけい", zh: "時鐘" },
+  { ja: "所", reading: "ところ", zh: "地方" },
+  { ja: "年", reading: "とし", zh: "年齡" },
+  { ja: "図書館", reading: "としょかん", zh: "圖書館" },
+  { ja: "どちら", reading: "どちら", zh: "哪邊" },
+  { ja: "とても", reading: "とても", zh: "非常" },
+  { ja: "隣", reading: "となり", zh: "隔壁" },
+  { ja: "飛ぶ", reading: "とぶ", zh: "飛" },
+  { ja: "止まる", reading: "とまる", zh: "停下" },
+  { ja: "友達", reading: "ともだち", zh: "朋友" },
+  { ja: "土曜日", reading: "どようび", zh: "星期六" },
+  { ja: "鳥", reading: "とり", zh: "鳥" },
+  { ja: "撮る", reading: "とる", zh: "拍照" },
+  { ja: "取る", reading: "とる", zh: "拿" },
+  { ja: "どれ", reading: "どれ", zh: "哪個" },
+  { ja: "ナイフ", reading: "ないふ", zh: "刀子" },
+  { ja: "中", reading: "なか", zh: "裡面" },
+  { ja: "長い", reading: "ながい", zh: "長的" },
+  { ja: "鳴く", reading: "なく", zh: "叫/啼" },
+  { ja: "なくす", reading: "なくす", zh: "弄丟" },
+  { ja: "なぜ", reading: "なぜ", zh: "為什麼" },
+  { ja: "夏", reading: "なつ", zh: "夏天" },
+  { ja: "夏休", reading: "なつやすみ", zh: "暑假" },
+  { ja: "名前", reading: "なまえ", zh: "名字" },
+  { ja: "習う", reading: "ならう", zh: "學習" },
+  { ja: "並ぶ", reading: "ならぶ", zh: "排隊" },
+  { ja: "並べる", reading: "ならべる", zh: "排列" },
+  { ja: "何", reading: "なに/なん", zh: "什麼" },
+  { ja: "二月", reading: "にがつ", zh: "二月" },
+  { ja: "肉", reading: "にく", zh: "肉" },
+  { ja: "西", reading: "にし", zh: "西" },
+  { ja: "日曜日", reading: "にちようび", zh: "星期日" },
+  { ja: "荷物", reading: "にもつ", zh: "行李" },
+  { ja: "ニュース", reading: "にゅーす", zh: "新聞" },
+  { ja: "庭", reading: "にわ", zh: "院子" },
+  { ja: "脱ぐ", reading: "ぬぐ", zh: "脫(衣服)" },
+  { ja: "温い", reading: "ぬるい", zh: "微溫的" },
+  { ja: "ネクタイ", reading: "ねくたい", zh: "領帶" },
+  { ja: "猫", reading: "ねこ", zh: "貓" },
+  { ja: "寝る", reading: "ねる", zh: "睡覺" },
+  { ja: "年", reading: "ねん", zh: "年" },
+  { ja: "ノート", reading: "のーと", zh: "筆記本" },
+  { ja: "飲む", reading: "のむ", zh: "喝" },
+  { ja: "乗る", reading: "のる", zh: "搭乘" },
+  { ja: "歯", reading: "は", zh: "牙齒" },
+  { ja: "パーティー", reading: "ぱーてぃー", zh: "派對" },
+  { ja: "はい", reading: "はい", zh: "是" },
+  { ja: "灰皿", reading: "はいざら", zh: "菸灰缸" },
+  { ja: "入ります", reading: "はいります", zh: "進入" },
+  { ja: "はがき", reading: "はがき", zh: "明信片" },
+  { ja: "はさみ", reading: "はさみ", zh: "剪刀" },
+  { ja: "橋", reading: "はし", zh: "橋" },
+  { ja: "始まる", reading: "はじまる", zh: "開始" },
+  { ja: "初めて", reading: "はじめて", zh: "第一次" },
+  { ja: "走る", reading: "はしる", zh: "跑" },
+  { ja: "バス", reading: "ばす", zh: "公車" },
+  { ja: "バター", reading: "ばたー", zh: "奶油" },
+  { ja: "働く", reading: "はたらく", zh: "工作" },
+  { ja: "八月", reading: "はちがつ", zh: "八月" },
+  { ja: "花", reading: "はな", zh: "花" },
+  { ja: "鼻", reading: "はな", zh: "鼻子" },
+  { ja: "話", reading: "はなし", zh: "話" },
+  { ja: "話す", reading: "はなす", zh: "說話" },
+  { ja: "母", reading: "はは", zh: "媽媽(自稱)" },
+  { ja: "早い", reading: "はやい", zh: "早的/快的" },
+  { ja: "春", reading: "はる", zh: "春天" },
+  { ja: "晴れ", reading: "はれ", zh: "晴天" },
+  { ja: "貼る", reading: "はる", zh: "貼" },
+  { ja: "半", reading: "はん", zh: "半" },
+  { ja: "番", reading: "ばん", zh: "號碼" },
+  { ja: "パン", reading: "ぱん", zh: "麵包" },
+  { ja: "番号", reading: "ばんごう", zh: "號碼" },
+  { ja: "晩御飯", reading: "ばんごはん", zh: "晚餐" },
+  { ja: "半分", reading: "はんぶん", zh: "一半" },
+  { ja: "東", reading: "ひがし", zh: "東" },
+  { ja: "左", reading: "ひだり", zh: "左" },
+  { ja: "引き出し", reading: "ひきだし", zh: "抽屜" },
+  { ja: "人", reading: "ひと", zh: "人" },
+  { ja: "一月", reading: "いちがつ", zh: "一月" },
+  { ja: "一つ", reading: "ひとつ", zh: "一個" },
+  { ja: "一人", reading: "ひとり", zh: "一個人" },
+  { ja: "百", reading: "ひゃく", zh: "百" },
+  { ja: "病院", reading: "びょういん", zh: "醫院" },
+  { ja: "病気", reading: "びょうき", zh: "生病" },
+  { ja: "昼", reading: "ひる", zh: "白天" },
+  { ja: "昼御飯", reading: "ひるごはん", zh: "午餐" },
+  { ja: "広い", reading: "ひろい", zh: "寬廣的" },
+  { ja: "フィルム", reading: "ふぃるむ", zh: "底片" },
+  { ja: "プール", reading: "ぷーる", zh: "游泳池" },
+  { ja: "フォーク", reading: "ふぉーく", zh: "叉子" },
+  { ja: "吹く", reading: "ふく", zh: "吹" },
+  { ja: "複雑", reading: "ふくざつ", zh: "複雜" },
+  { ja: "二つ", reading: "ふたつ", zh: "兩個" },
+  { ja: "豚肉", reading: "ぶたにく", zh: "豬肉" },
+  { ja: "二人", reading: "ふたり", zh: "兩個人" },
+  { ja: "二日", reading: "ふつか", zh: "二號" },
+  { ja: "太い", reading: "ふとい", zh: "粗的" },
+  { ja: "冬", reading: "ふゆ", zh: "冬天" },
+  { ja: "降る", reading: "ふる", zh: "下(雨/雪)" },
+  { ja: "古い", reading: "ふるい", zh: "舊的" },
+  { ja: "プレゼント", reading: "ぷれぜんと", zh: "禮物" },
+  { ja: "文章", reading: "ぶんしょう", zh: "文章" },
+  { ja: "ページ", reading: "ぺーじ", zh: "頁" },
+  { ja: "下手", reading: "へた", zh: "不擅長" },
+  { ja: "ベッド", reading: "べっど", zh: "床" },
+  { ja: "部屋", reading: "へや", zh: "房間" },
+  { ja: "勉強", reading: "べんきょう", zh: "念書" },
+  { ja: "ペン", reading: "ぺん", zh: "筆" },
+  { ja: "便利", reading: "べんり", zh: "方便" },
+  { ja: "方", reading: "ほう", zh: "方向" },
+  { ja: "帽子", reading: "ぼうし", zh: "帽子" },
+  { ja: "ボールペン", reading: "ぼーるぺん", zh: "原子筆" },
+  { ja: "ポケット", reading: "ぽけっと", zh: "口袋" },
+  { ja: "欲しい", reading: "ほしい", zh: "想要" },
+  { ja: "細い", reading: "ほそい", zh: "細的" },
+  { ja: "ボタン", reading: "ぼたん", zh: "鈕扣" },
+  { ja: "ホテル", reading: "ほてる", zh: "飯店" },
+  { ja: "本", reading: "ほん", zh: "書" },
+  { ja: "本当に", reading: "ほんとうに", zh: "真的" },
+  { ja: "毎朝", reading: "まいあさ", zh: "每天早上" },
+  { ja: "毎月", reading: "まいつき", zh: "每個月" },
+  { ja: "毎週", reading: "まいしゅう", zh: "每個星期" },
+  { ja: "毎日", reading: "まいにち", zh: "每天" },
+  { ja: "毎年", reading: "まいとし/まいねん", zh: "每年" },
+  { ja: "毎晩", reading: "まいばん", zh: "每晚" },
+  { ja: "前", reading: "まえ", zh: "前面" },
+  { ja: "曲がる", reading: "まがる", zh: "轉彎" },
+  { ja: "まずい", reading: "まずい", zh: "難吃的" },
+  { ja: "また", reading: "また", zh: "又" },
+  { ja: "まだ", reading: "まだ", zh: "還" },
+  { ja: "町", reading: "まち", zh: "城鎮" },
+  { ja: "待つ", reading: "まつ", zh: "等待" },
+  { ja: "まっすぐ", reading: "まっすぐ", zh: "直走" },
+  { ja: "マッチ", reading: "まっち", zh: "火柴" },
+  { ja: "窓", reading: "まど", zh: "窗戶" },
+  { ja: "丸い", reading: "まるい", zh: "圓的" },
+  { ja: "万", reading: "まん", zh: "萬" },
+  { ja: "万年筆", reading: "まんねんひつ", zh: "鋼筆" },
+  { ja: "右", reading: "みぎ", zh: "右" },
+  { ja: "短い", reading: "みじかい", zh: "短的" },
+  { ja: "水", reading: "みず", zh: "水" },
+  { ja: "店", reading: "みせ", zh: "店" },
+  { ja: "見せる", reading: "みせる", zh: "給看" },
+  { ja: "道", reading: "みち", zh: "路" },
+  { ja: "緑", reading: "みどり", zh: "綠色" },
+  { ja: "皆さん", reading: "みなさん", zh: "大家" },
+  { ja: "南", reading: "みなみ", zh: "南" },
+  { ja: "耳", reading: "みみ", zh: "耳朵" },
+  { ja: "見る", reading: "みる", zh: "看" },
+  { ja: "みんな", reading: "みんな", zh: "大家" },
+  { ja: "六日", reading: "むいか", zh: "六號" },
+  { ja: "向かう", reading: "むかう", zh: "朝向" },
+  { ja: "難しい", reading: "むずかしい", zh: "難的" },
+  { ja: "目", reading: "め", zh: "眼睛" },
+  { ja: "メートル", reading: "めーとる", zh: "公尺" },
+  { ja: "眼鏡", reading: "めがね", zh: "眼鏡" },
+  { ja: "もう", reading: "もう", zh: "已經" },
+  { ja: "木曜日", reading: "もくようび", zh: "星期四" },
+  { ja: "もしもし", reading: "もしもし", zh: "喂" },
+  { ja: "持って", reading: "もって", zh: "持有" },
+  { ja: "もっと", reading: "もっと", zh: "更" },
+  { ja: "物", reading: "もの", zh: "東西" },
+  { ja: "門", reading: "もん", zh: "門" },
+  { ja: "問題", reading: "もんだい", zh: "問題" },
+  { ja: "八百屋", reading: "やおや", zh: "蔬果店" },
+  { ja: "野菜", reading: "やさい", zh: "蔬菜" },
+  { ja: "易しい", reading: "やさしい", zh: "簡單的" },
+  { ja: "安い", reading: "やすい", zh: "便宜的" },
+  { ja: "休み", reading: "やすみ", zh: "休息" },
+  { ja: "休む", reading: "やすむ", zh: "休息" },
+  { ja: "八日", reading: "ようか", zh: "八號" },
+  { ja: "八", reading: "はち", zh: "八" },
+  { ja: "薬局", reading: "やっきょく", zh: "藥局" },
+  { ja: "屋根", reading: "やね", zh: "屋頂" },
+  { ja: "やめる", reading: "やめる", zh: "停止" },
+  { ja: "柔らかい", reading: "やわらかい", zh: "柔軟的" },
+  { ja: "湯", reading: "ゆ", zh: "熱水" },
+  { ja: "雪", reading: "ゆき", zh: "雪" },
+  { ja: "ゆっくり", reading: "ゆっくり", zh: "慢慢地" },
+  { ja: "八月", reading: "はちがつ", zh: "八月" },
+  { ja: "夢", reading: "ゆめ", zh: "夢" },
+  { ja: "指", reading: "ゆび", zh: "手指" },
+  { ja: "有名", reading: "ゆうめい", zh: "有名" },
+  { ja: "夕べ", reading: "ゆうべ", zh: "昨晚" },
+  { ja: "夕方", reading: "ゆうがた", zh: "傍晚" },
+  { ja: "郵便局", reading: "ゆうびんきょく", zh: "郵局" },
+  { ja: "雪", reading: "ゆき", zh: "雪" },
+  { ja: "よく", reading: "よく", zh: "經常" },
+  { ja: "四日", reading: "よっか", zh: "四號" },
+  { ja: "よく", reading: "よく", zh: "好好地" },
+  { ja: "欲い", reading: "ほしい", zh: "想要的" },
+  { ja: "横", reading: "よこ", zh: "旁邊" },
+  { ja: "四日", reading: "よっか", zh: "四號" },
+  { ja: "呼ぶ", reading: "よぶ", zh: "呼喚" },
+  { ja: "読む", reading: "よむ", zh: "讀" },
+  { ja: "夜", reading: "よる", zh: "晚上" },
+  { ja: "来月", reading: "らいげつ", zh: "下個月" },
+  { ja: "来週", reading: "らいしゅう", zh: "下星期" },
+  { ja: "来年", reading: "らいねん", zh: "明年" },
+  { ja: "ラジオ", reading: "らじお", zh: "收音機" },
+  { ja: "りっぱ", reading: "りっぱ", zh: "漂亮/宏偉" },
+  { ja: "留学生", reading: "りゅうがくせい", zh: "留學生" },
+  { ja: "両親", reading: "りょうしん", zh: "父母" },
+  { ja: "料理", reading: "りょうり", zh: "料理" },
+  { ja: "旅行", reading: "りょこう", zh: "旅行" },
+  { ja: "零", reading: "れい", zh: "零" },
+  { ja: "冷蔵庫", reading: "れいぞうこ", zh: "冰箱" },
+  { ja: "レコード", reading: "れこーど", zh: "唱片" },
+  { ja: "レストラン", reading: "れすとらん", zh: "餐廳" },
+  { ja: "練習", reading: "れんしゅう", zh: "練習" },
+  { ja: "六", reading: "ろく", zh: "六" },
+  { ja: "ワイシャツ", reading: "わいしゃつ", zh: "白襯衫" },
+  { ja: "若い", reading: "わかい", zh: "年輕的" },
+  { ja: "分かる", reading: "わかる", zh: "懂" },
+  { ja: "忘れる", reading: "わすれる", zh: "忘記" },
+  { ja: "私", reading: "わたし", zh: "我" },
+  { ja: "渡す", reading: "わたす", zh: "交給" },
+  { ja: "渡る", reading: "わたる", zh: "渡過" },
+  { ja: "悪い", reading: "わるい", zh: "壞的" },
+  { ja: "私", reading: "わたくし", zh: "我(謙稱)" },
+  { ja: "笑う", reading: "わらう", zh: "笑" },
+  { ja: "宿題", reading: "しゅくだい", zh: "作業" },
+  { ja: "暑い", reading: "あつい", zh: "熱" },
+  { ja: "寒", reading: "さむい", zh: "冷" },
+  { ja: "凄い", reading: "すごい", zh: "厲害" }
+];
+
+// 移除重複(基於 ja + reading 唯一)
+const seen = new Set();
+const UNIQUE_VOCAB = VOCAB.filter(v => {
+  const key = v.ja + "|" + v.reading;
+  if (seen.has(key)) return false;
+  seen.add(key);
+  return true;
+});
+
+const PER_ROUND = 20;
+const OPTIONS_PER_Q = 4;
+
+let mode = "ja2zh";  // ja2zh | zh2ja
+// ja2zh: 漢字 → 中文
+// zh2ja: 中文 → 漢字(答完才揭曉讀音)
+// kana2zh: 平假名/片假名 → 中文(答完才揭曉漢字)
+let pool = [];       // 當前題庫
+let poolIdx = 0;
+let currentQ = null;
+let score = 0;
+let answered = 0;
+let answeredThisQ = false;
+let wrongQueue = []; // 錯題,稍後重出
+
+// ====== 工具 ======
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function pickRandom(arr, n, exclude = null) {
+  const filtered = exclude ? arr.filter(x => x !== exclude) : arr.slice();
+  return shuffle(filtered).slice(0, n);
+}
+
+function buildQuestion() {
+  // 從 pool 取一題,做 4 選 1
+  const answer = pool[poolIdx % pool.length];
+  poolIdx++;
+
+  // 選項
+  let opts;
+  if (mode === "ja2zh") {
+    // 題目:ja(漢字/單字) → 選 zh
+    // 兩段式:先給漢字,答完才顯示讀音(平假名)
+    const wrongs = pickRandom(UNIQUE_VOCAB.map(v => v.zh), OPTIONS_PER_Q - 1, answer.zh);
+    opts = shuffle([answer.zh, ...wrongs]);
+    return {
+      question: answer.ja,
+      sub: answer.reading,
+      hidden: "讀音 / 假名",
+      reveal: answer.reading,
+      options: opts,
+      answer: answer.zh,
+      raw: answer,
+    };
+  } else if (mode === "zh2ja") {
+    // 題目:zh → 選 ja
+    // 兩段式:先給中文,答完才顯示日文漢字
+    const wrongs = pickRandom(UNIQUE_VOCAB.map(v => v.ja), OPTIONS_PER_Q - 1, answer.ja);
+    opts = shuffle([answer.ja, ...wrongs]);
+    return {
+      question: answer.zh,
+      sub: answer.reading,
+      hidden: "日文 / 漢字",
+      reveal: `${answer.ja}（${answer.reading}）`,
+      options: opts,
+      answer: answer.ja,
+      raw: answer,
+    };
+  } else {
+    // kana2zh: 假名 → 中文
+    // 兩段式:先給假名,答完才揭曉漢字
+    const prompt = answer.katakana || answer.reading;
+    const wrongs = pickRandom(UNIQUE_VOCAB.map(v => v.zh), OPTIONS_PER_Q - 1, answer.zh);
+    opts = shuffle([answer.zh, ...wrongs]);
+    return {
+      question: prompt,
+      sub: "",
+      hidden: "漢字 / 單字",
+      reveal: `${answer.ja}（${answer.reading}）`,
+      options: opts,
+      answer: answer.zh,
+      raw: answer,
+    };
+  }
+}
+
+// ====== 渲染 ======
+function render() {
+  const app = document.getElementById("app");
+  if (state === "start") return renderStart(app);
+  if (state === "playing") return renderPlaying(app);
+  if (state === "end") return renderEnd(app);
+}
+
+let state = "start";
+
+function renderStart(app) {
+  app.innerHTML = `
+    <h1>N5 單字測驗</h1>
+    <div class="subtitle">單字資料庫 ${UNIQUE_VOCAB.length} 個 / 每次 ${PER_ROUND} 題</div>
+    <div class="start-screen">
+      <p>從單字資料庫隨機抽出 ${PER_ROUND} 題,答錯的題目稍後會再回來考你一次。</p>
+      <p style="color:#888;font-size:13px">中途答錯的會自動放回題庫尾部,確保本輪一定會再遇到。</p>
+      <div class="mode-select">
+        <button class="mode-btn ${mode==='ja2zh'?'active':''}" id="m-ja2zh">漢字 → 中文</button>
+        <button class="mode-btn ${mode==='kana2zh'?'active':''}" id="m-kana2zh">假名 → 中文</button>
+        <button class="mode-btn ${mode==='zh2ja'?'active':''}" id="m-zh2ja">中文 → 日文</button>
+      </div>
+      <button class="btn" id="start">開始</button>
+    </div>
+  `;
+  document.getElementById("m-ja2zh").onclick = () => { mode = "ja2zh"; render(); };
+  document.getElementById("m-kana2zh").onclick = () => { mode = "kana2zh"; render(); };
+  document.getElementById("m-zh2ja").onclick = () => { mode = "zh2ja"; render(); };
+  document.getElementById("start").onclick = startGame;
+}
+
+function renderPlaying(app) {
+  if (!currentQ) return;
+  const total = pool.length;
+  const progress = answered + 1;
+  app.innerHTML = `
+    <h1>N5 單字測驗</h1>
+    <div class="stats">
+      <div>第 <span>${progress}</span> / ${total} 題</div>
+      <div>答對 <span>${score}</span></div>
+      <div>錯題 <span>${wrongQueue.length}</span></div>
+    </div>
+    <div class="question">
+      <div class="q-label">${mode === 'ja2zh' ? '漢字 → 中文' : mode === 'kana2zh' ? '假名 → 中文' : '中文 → 日文'}</div>
+      <div class="q-text">${escape(currentQ.question)}</div>
+      <div id="reveal-area"></div>
+    </div>
+    <div class="options" id="opts">
+      ${currentQ.options.map((o, i) => `
+        <button class="opt" data-idx="${i}">${escape(o)}</button>
+      `).join("")}
+    </div>
+    <div class="feedback" id="fb"></div>
+    <button class="btn" id="next" disabled>下一題</button>
+  `;
+
+  // 綁定選項
+  document.querySelectorAll(".opt").forEach(btn => {
+    btn.onclick = () => answer(btn);
+  });
+  document.getElementById("next").onclick = nextQ;
+}
+
+function renderEnd(app) {
+  const rate = Math.round((score / answered) * 100) || 0;
+  app.innerHTML = `
+    <h1>本輪結束</h1>
+    <div class="end-screen">
+      <div class="end-score">${score} / ${answered}</div>
+      <p>正確率 ${rate}%</p>
+      <p style="color:#888;font-size:14px">錯題已重抽再戰,或重新開始換一批題目</p>
+      <button class="btn" id="again">再來一輪</button>
+    </div>
+  `;
+  document.getElementById("again").onclick = startGame;
+}
+
+function escape(s) {
+  return String(s).replace(/[&<>"']/g, c => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[c]));
+}
+
+// ====== 遊戲邏輯 ======
+function startGame() {
+  pool = shuffle(UNIQUE_VOCAB).slice(0, Math.min(PER_ROUND * 3, UNIQUE_VOCAB.length));
+  poolIdx = 0;
+  score = 0;
+  answered = 0;
+  wrongQueue = [];
+  answeredThisQ = false;
+  currentQ = buildQuestion();
+  state = "playing";
+  render();
+}
+
+function answer(btn) {
+  if (answeredThisQ) return;
+  answeredThisQ = true;
+  const chosen = btn.dataset.idx;
+  const correct = currentQ.options.indexOf(currentQ.answer);
+  const fb = document.getElementById("fb");
+  const allBtns = document.querySelectorAll(".opt");
+
+  allBtns.forEach((b, i) => {
+    b.disabled = true;
+    if (i == correct) b.classList.add("correct");
+  });
+
+  if (chosen == correct) {
+    fb.textContent = "✓ 正解!";
+    fb.className = "feedback correct";
+    score++;
+  } else {
+    btn.classList.add("wrong");
+    fb.textContent = `✗ 答錯了,正確答案是「${currentQ.answer}」`;
+    fb.className = "feedback wrong";
+    // 錯題回池:加到 pool 尾
+    wrongQueue.push(currentQ.raw);
+  }
+
+  // 揭曉另一部分(平假名 / 漢字)
+  const reveal = document.getElementById("reveal-area");
+  if (reveal) {
+    reveal.innerHTML = `<div class="q-hint"><strong>${escape(currentQ.hidden)}：</strong>${escape(currentQ.reveal)}</div>`;
+  }
+
+  answered++;
+  document.getElementById("next").disabled = false;
+}
+
+function nextQ() {
+  answeredThisQ = false;
+  // 錯題先出(從 queue 頭)
+  if (wrongQueue.length > 0) {
+    const reAnswer = wrongQueue.shift();
+    const temp = pool[poolIdx % pool.length];
+    pool[poolIdx % pool.length] = reAnswer;
+    poolIdx++;
+  }
+  if (poolIdx >= pool.length && wrongQueue.length === 0) {
+    state = "end";
+    render();
+    return;
+  }
+  currentQ = buildQuestion();
+  render();
+}
+
+render();
+</script>
+</body>
+</html>
