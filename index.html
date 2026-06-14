@@ -701,6 +701,22 @@ const VOCAB = [
   { ja: "凄い", reading: "すごい", zh: "厲害" }
 ];
 
+// ============ N5 文法題庫 ============
+const GRAMMAR = [
+  { pattern: "〜は〜です", prompt: "私___学生___。", options: ["は / です", "が / だ", "を / ます", "に / ある"], answer: "は / です", note: "N5 基本句型:〜は〜です(肯定)" },
+  { pattern: "〜ます", prompt: "毎日朝ごはんを__(食べ)__。", options: ["食べます", "食べる", "食べった", "食べない"], answer: "食べます", note: "敬體:動詞ます形(食べる→食べます)" },
+  { pattern: "〜にいきます", prompt: "明日学校___行きます。", options: ["を", "が", "に", "で"], answer: "に", note: "移動句型:目的地用に" },
+  { pattern: "〜がいます/あります", prompt: "部屋に猫___います。", options: ["は", "を", "に", "が"], answer: "が", note: "存在句:有生命用います,主語標が" },
+  { pattern: "〜たい", prompt: "水___飲みたいです。", options: ["を", "が", "に", "は"], answer: "が", note: "願望:〜たい 對象助詞用 を→が" },
+  { pattern: "〜てもいい", prompt: "ここで写真__(撮っ)__もいいですか。", options: ["撮って", "撮る", "撮った", "撮らない"], answer: "撮って", note: "許可:動詞て形 + もいいです" },
+  { pattern: "〜なければなりません", prompt: "明日早く__(起き)__なければなりません。", options: ["起きる", "起きに", "起きて", "起き"], answer: "起きて", note: "義務:動詞て形 + なければなりません" },
+  { pattern: "〜ことができる", prompt: "日本語___話すことができます。", options: ["を", "は", "が", "に"], answer: "が", note: "可能:〜ことができる,對象助詞用を→が" },
+  { pattern: "〜とき", prompt: "暇___時、本を読みます。", options: ["な", "の", "に", "で"], answer: "の", note: "連接:名詞 + の + とき" },
+  { pattern: "〜と思います", prompt: "日本は便利__(だ)__と思います。", options: ["だ", "な", "に", "を"], answer: "な", note: "思量:〜だと思います,な形容詞/名詞用な" }
+];
+
+
+
 // 移除重複(基於 ja + reading 唯一)
 const seen = new Set();
 const UNIQUE_VOCAB = VOCAB.filter(v => {
@@ -744,6 +760,21 @@ function buildQuestion() {
   // 從 pool 取一題,做 4 選 1
   const answer = pool[poolIdx % pool.length];
   poolIdx++;
+
+  // 文法題分支
+  if (mode === "grammar") {
+    const wrongs = pickRandom(GRAMMAR.map(g => g.answer), OPTIONS_PER_Q - 1, answer.answer);
+    const opts = shuffle([answer.answer, ...wrongs]);
+    return {
+      question: answer.prompt,
+      sub: answer.pattern,
+      hidden: "文型 / 解析",
+      reveal: `${answer.pattern} — ${answer.note}`,
+      options: opts,
+      answer: answer.answer,
+      raw: answer,
+    };
+  }
 
   // 選項
   let opts;
@@ -804,16 +835,22 @@ function render() {
 let state = "start";
 
 function renderStart(app) {
+  const isGrammar = mode === "grammar";
+  const titleText = isGrammar ? "N5 文法測驗" : "N5 單字測驗";
+  const subText = isGrammar
+    ? `文法題庫 ${GRAMMAR.length} 題 / 每次 ${Math.min(PER_ROUND, GRAMMAR.length)} 題`
+    : `單字資料庫 ${UNIQUE_VOCAB.length} 個 / 每次 ${PER_ROUND} 題`;
   app.innerHTML = `
-    <h1>N5 單字測驗</h1>
-    <div class="subtitle">單字資料庫 ${UNIQUE_VOCAB.length} 個 / 每次 ${PER_ROUND} 題</div>
+    <h1>${titleText}</h1>
+    <div class="subtitle">${subText}</div>
     <div class="start-screen">
-      <p>從單字資料庫隨機抽出 ${PER_ROUND} 題,答錯的題目稍後會再回來考你一次。</p>
+      <p>${isGrammar ? '從文法題庫隨機抽出題目,答錯的題目稍後會再回來考你一次。' : `從單字資料庫隨機抽出 ${PER_ROUND} 題,答錯的題目稍後會再回來考你一次。`}</p>
       <p style="color:#888;font-size:13px">中途答錯的會自動放回題庫尾部,確保本輪一定會再遇到。</p>
       <div class="mode-select">
         <button class="mode-btn ${mode==='ja2zh'?'active':''}" id="m-ja2zh">漢字 → 中文</button>
         <button class="mode-btn ${mode==='kana2zh'?'active':''}" id="m-kana2zh">假名 → 中文</button>
         <button class="mode-btn ${mode==='zh2ja'?'active':''}" id="m-zh2ja">中文 → 日文</button>
+        <button class="mode-btn ${mode==='grammar'?'active':''}" id="m-grammar">📝 文法練習</button>
       </div>
       <button class="btn" id="start">開始</button>
     </div>
@@ -821,6 +858,8 @@ function renderStart(app) {
   document.getElementById("m-ja2zh").onclick = () => { mode = "ja2zh"; render(); };
   document.getElementById("m-kana2zh").onclick = () => { mode = "kana2zh"; render(); };
   document.getElementById("m-zh2ja").onclick = () => { mode = "zh2ja"; render(); };
+  const gbtn = document.getElementById("m-grammar");
+  if (gbtn) gbtn.onclick = () => { mode = "grammar"; render(); };
   document.getElementById("start").onclick = startGame;
 }
 
@@ -829,14 +868,14 @@ function renderPlaying(app) {
   const total = pool.length;
   const progress = answered + 1;
   app.innerHTML = `
-    <h1>N5 單字測驗</h1>
+    <h1>${mode === 'grammar' ? 'N5 文法測驗' : 'N5 單字測驗'}</h1>
     <div class="stats">
       <div>第 <span>${progress}</span> / ${total} 題</div>
       <div>答對 <span>${score}</span></div>
       <div>錯題 <span>${wrongQueue.length}</span></div>
     </div>
     <div class="question">
-      <div class="q-label">${mode === 'ja2zh' ? '漢字 → 中文' : mode === 'kana2zh' ? '假名 → 中文' : '中文 → 日文'}</div>
+      <div class="q-label">${mode === 'ja2zh' ? '漢字 → 中文' : mode === 'kana2zh' ? '假名 → 中文' : mode === 'grammar' ? '文法填空' : '中文 → 日文'}</div>
       <div class="q-text">${escape(currentQ.question)}</div>
       <div id="reveal-area"></div>
     </div>
@@ -878,7 +917,11 @@ function escape(s) {
 
 // ====== 遊戲邏輯 ======
 function startGame() {
-  pool = shuffle(UNIQUE_VOCAB).slice(0, Math.min(PER_ROUND * 3, UNIQUE_VOCAB.length));
+  if (mode === "grammar") {
+    pool = shuffle(GRAMMAR).slice(0, Math.min(PER_ROUND * 3, GRAMMAR.length));
+  } else {
+    pool = shuffle(UNIQUE_VOCAB).slice(0, Math.min(PER_ROUND * 3, UNIQUE_VOCAB.length));
+  }
   poolIdx = 0;
   score = 0;
   answered = 0;
